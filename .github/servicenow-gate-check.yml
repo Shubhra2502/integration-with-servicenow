@@ -1,1 +1,51 @@
+name: ServiceNow Gate Check
 
+on:
+  workflow_dispatch: # Allows manual triggering
+  push: # Optional, triggers on code push
+    branches:
+      - main
+
+jobs:
+  check-servicenow:
+    runs-on: ubuntu-latest
+
+    steps:
+      # Checkout the code (optional, depending on your pipeline requirements)
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      # Set environment variables for ServiceNow credentials
+      - name: Set Environment Variables
+        env:
+          SERVICENOW_USERNAME: ${{ secrets.SERVICENOW_USERNAME }}
+          SERVICENOW_PASSWORD: ${{ secrets.SERVICENOW_PASSWORD }}
+          SERVICENOW_INSTANCE_URL: ${{ secrets.SERVICENOW_INSTANCE_URL }}
+        run: echo "Environment variables set."
+
+      # Query ServiceNow API to check the change request state
+      - name: Check Change Request State
+        id: check-state
+        env:
+          SERVICENOW_USERNAME: ${{ secrets.SERVICENOW_USERNAME }}
+          SERVICENOW_PASSWORD: ${{ secrets.SERVICENOW_PASSWORD }}
+          SERVICENOW_INSTANCE_URL: ${{ secrets.SERVICENOW_INSTANCE_URL }}
+        run: |
+          # Query ServiceNow API
+          response=$(curl -s -u "$SERVICENOW_USERNAME:$SERVICENOW_PASSWORD" \
+            -X GET "$SERVICENOW_INSTANCE_URL/api/now/table/change_request?sysparm_query=sys_id=<b0dbda5347c12200e0ef563dbb9a718f>&sysparm_fields=state")
+          echo "Response: $response"
+
+          # Extract state from response
+          state=$(echo "$response" | jq -r '.result[0].state')
+          echo "Current state: $state"
+
+          # Check if state is 'Implementation' (state value might vary)
+          if [[ "$state" != "Implement" ]]; then
+            echo "Change Request is not in Implementation state. Exiting..."
+            exit 1
+          fi
+
+      # Proceed with deployment
+      - name: Deploy Application
+        run: echo "Deployment started."
